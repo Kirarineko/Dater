@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Dater
+Comment=原创世界观日历管理
+Exec=dater
+Icon=dater
+Terminal=true
+Categories=Office;Calendar;
+Keywords=calendar;worldbuilding;

@@ -1,0 +1,34 @@
+{
+  "name": "dater",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Dater — 原创世界观日历管理终端应用",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "dater": "./src/index.ts"
+  },
+  "packageManager": "pnpm@10.17.1",
+  "engines": {
+    "node": ">=26.4.0",
+    "bun": ">=1.4.0",
+    "pnpm": ">=10 <11"
+  },
+  "scripts": {
+    "dev": "bun --watch ./src/index.ts",
+    "start": "bun ./src/index.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "pnpm run typecheck && bun build ./src/index.ts --target=bun --packages=external --outdir=dist",
+    "build:release": "bun ./scripts/build-release.ts",
+    "package:linux": "bun ./scripts/package-linux.ts"
+  },
+  "dependencies": {
+    "@opentui/core": "0.5.14",
+    "lunar-typescript": "1.8.6",
+    "web-tree-sitter": "0.25.10"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,131 @@
+name: Build installers
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "安装包版本（SemVer）；留空使用 package.json"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUN_VERSION: "1.4.2"
+  NFPM_VERSION: "v2.40.0"
+
+jobs:
+  installers:
+    name: ${{ matrix.platform }} x64
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            platform: linux
+          - os: windows-2022
+            platform: windows
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26.4.0"
+      - uses: pnpm/action-setup@v4
+        # Reads the exact pnpm version from package.json.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install native dependencies for this runner
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve package version
+        id: version
+        env:
+          DATER_VERSION_INPUT: ${{ inputs.version || '' }}
+        run: bun ./scripts/release-version.ts
+
+      - name: Typecheck and build
+        # pnpm build includes the strict typecheck, including packaging scripts.
+        run: pnpm build
+
+      - name: Prepare Bun license (Linux)
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 \
+            "https://raw.githubusercontent.com/oven-sh/bun/bun-v${BUN_VERSION}/LICENSE.md" \
+            --output "$RUNNER_TEMP/bun-LICENSE.md"
+          echo "DATER_BUN_LICENSE=$RUNNER_TEMP/bun-LICENSE.md" >> "$GITHUB_ENV"
+
+      - name: Prepare Bun license (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $licensePath = Join-Path $env:RUNNER_TEMP 'bun-LICENSE.md'
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/oven-sh/bun/bun-v$env:BUN_VERSION/LICENSE.md" -OutFile $licensePath
+          "DATER_BUN_LICENSE=$licensePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Compile independent executable with runtime assets
+        run: pnpm build:release
+
+      - uses: actions/setup-go@v5
+        if: matrix.platform == 'linux'
+        with:
+          go-version: "1.24.x"
+          cache: false
+
+      - name: Prepare Linux packaging tools
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          go install "github.com/goreleaser/nfpm/v2/cmd/nfpm@${NFPM_VERSION}"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          mkdir -p "$RUNNER_TEMP/appimagetool"
+          curl --fail --location --retry 3 \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage \
+            --output "$RUNNER_TEMP/appimagetool/tool.AppImage"
+          chmod +x "$RUNNER_TEMP/appimagetool/tool.AppImage"
+          cd "$RUNNER_TEMP/appimagetool"
+          ./tool.AppImage --appimage-extract
+          echo "DATER_APPIMAGETOOL=$RUNNER_TEMP/appimagetool/squashfs-root/AppRun" >> "$GITHUB_ENV"
+
+      - name: Build deb, rpm and AppImage
+        if: matrix.platform == 'linux'
+        env:
+          DATER_RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: pnpm package:linux
+
+      - name: Build Windows installer and register user PATH
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        env:
+          DATER_RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          DATER_FILE_VERSION: ${{ steps.version.outputs.file-version }}
+        run: |
+          $compiler = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $compiler)) { throw 'Inno Setup 6 is missing from the runner.' }
+          $staging = Join-Path $env:GITHUB_WORKSPACE 'release\windows-x64'
+          $output = Join-Path $env:GITHUB_WORKSPACE 'release\packages'
+          & $compiler "/DVersion=$env:DATER_RELEASE_VERSION" "/DFileVersion=$env:DATER_FILE_VERSION" "/DStagingDirectory=$staging" "/DOutputDirectory=$output" 'packaging\windows\dater.iss'
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE" }
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: dater-${{ matrix.platform }}-x64
+          path: release/packages/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30

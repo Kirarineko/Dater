@@ -1,0 +1,17 @@
+node_modules/
+.pnpm-store/
+dist/
+release/
+coverage/
+*.tsbuildinfo
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+dater_date/
+date.json
+Date.json
+date.json.*.tmp
+Date.json.*.tmp

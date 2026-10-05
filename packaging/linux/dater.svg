@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <title>Dater</title>
+  <desc>原创世界观日历管理</desc>
+  <rect width="128" height="128" rx="24" fill="#101923"/>
+  <rect x="24" y="30" width="80" height="76" rx="10" fill="#172335" stroke="#7edbc1" stroke-width="5"/>
+  <path d="M24 52h80M44 23v17M84 23v17" fill="none" stroke="#7edbc1" stroke-width="5" stroke-linecap="round"/>
+  <g fill="#e4edf7">
+    <rect x="38" y="65" width="10" height="10" rx="2"/>
+    <rect x="59" y="65" width="10" height="10" rx="2"/>
+    <rect x="80" y="65" width="10" height="10" rx="2"/>
+    <rect x="38" y="85" width="10" height="10" rx="2"/>
+    <rect x="59" y="85" width="10" height="10" rx="2"/>
+  </g>
+  <rect x="80" y="85" width="10" height="10" rx="2" fill="#7edbc1"/>
+</svg>

@@ -1,0 +1,24 @@
+#!/bin/sh
+set -eu
+
+if [ -n "${APPDIR:-}" ]; then
+  app_directory=$APPDIR
+else
+  app_directory=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+fi
+
+if [ "${1:-}" = "--install" ]; then
+  if [ "$#" -ne 1 ]; then
+    printf '%s\n' '用法：Dater.AppImage --install' >&2
+    exit 2
+  fi
+  if [ -z "${APPIMAGE:-}" ]; then
+    printf '%s\n' '请从原始 AppImage 运行 --install，或向 install-appimage.sh 传入 AppImage 路径。' >&2
+    exit 2
+  fi
+  exec sh "$app_directory/install-appimage.sh" "$APPIMAGE"
+fi
+
+# Locating the bundle happens in a subshell; the application keeps the caller's
+# working directory so that its date.json is found there.
+exec "$app_directory/usr/lib/dater/dater" "$@"
