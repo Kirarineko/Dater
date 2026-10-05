@@ -130,7 +130,9 @@ if (!result.success) {
 const builtins = new Set([...builtinModules, ...builtinModules.map(name => `node:${name}`), "bun", "bun:ffi"]);
 for (const input of Object.values(result.metafile?.inputs ?? {})) {
   for (const imported of input.imports) {
-    if (imported.external && !builtins.has(imported.path)) {
+    // Bun also lists erased local type references as "external" inputs. They
+    // require no runtime file; reject remaining external package dependencies.
+    if (imported.external && !imported.path.startsWith(".") && !builtins.has(imported.path)) {
       throw new Error(`发布包仍依赖外部模块，不能分发：${imported.path}`);
     }
   }

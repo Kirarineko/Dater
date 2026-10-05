@@ -16,7 +16,7 @@ OpenTUI Core 自带终端渲染和布局能力。项目采用纯 TypeScript API�
 
 ## 安装包
 
-安装包目前支持 Windows x64 和 Linux x64，包含 Bun 编译的独立可执行文件、OpenTUI 运行资源和许可证。使用安装包无需另外安装 Node.js、Bun 或 pnpm。
+安装包目前支持 Windows x64 和 Linux x64，包含 Bun 编译的独立可执行文件、OpenTUI 运行资源和许可证。使用安装包无需另外安装 Node.js、Bun 或 pnpm。Linux 基于 Ubuntu 22.04 构建，需要 glibc 2.35 或更高版本；不支持 Alpine 等 musl 系统。
 
 Windows 运行 `dater-0.0.0-windows-x64-setup.exe`，默认安装到当前用户的 `%LOCALAPPDATA%\Programs\Dater`，无需管理员权限。安装器将目录加入当前用户 PATH；安装完成后打开新终端，即可在任意世界观目录执行 `dater`。升级不会重复追加 PATH，卸载只移除安装器添加的条目。
 
@@ -40,6 +40,8 @@ chmod +x ./dater-0.0.0-linux-x64.AppImage
 ```
 
 用户安装将镜像放到 `~/.local/share/dater/dater.AppImage`，创建 `~/.local/bin/dater`，并为当前 shell 注册 PATH；打开新终端后执行 `dater`。再次运行 `--install` 可更新应用。安装不会覆盖其他来源的同名用户命令。
+
+AppImage 通常需要发行版提供 FUSE 2 兼容库。无法挂载时可加上 `--appimage-extract-and-run` 运行或安装；安装后同样可执行 `dater --appimage-extract-and-run`。PATH 自动配置覆盖 bash、zsh 和 fish；其他 shell 写入 `~/.profile`，若不读取该文件需自行加入 `~/.local/bin`。
 
 在世界观目录中运行 `dater` 会加载该目录的 `date.json`；也可执行 `dater /path/to/world` 指定目录。安装、更新和卸载应用均不清理世界观数据。
 
@@ -164,7 +166,7 @@ pnpm start /path/to/world
 
 工作流上传 `dater-windows-x64` 和 `dater-linux-x64` 两个 Actions artifacts，不自动创建 GitHub Release。安装包输出到 `release/packages/`，文件名为 `dater-<版本>-windows-x64-setup.exe` 和 `dater-<版本>-linux-x64.{deb,rpm,AppImage}`。
 
-发布构建在对应平台安装依赖后进行，输出 `release/windows-x64/` 或 `release/linux-x64/`。构建脚本要求 `DATER_BUN_LICENSE` 指向所用 Bun 版本的官方许可证，工作流负责准备该文件；包内同时保留项目 MIT 许可证、第三方声明和依赖许可证。Linux 打包使用 fpm 与 appimagetool，Windows 使用 Inno Setup；工作流准备对应工具。
+发布构建在对应平台安装依赖后进行，输出 `release/windows-x64/` 或 `release/linux-x64/`。构建脚本要求 `DATER_BUN_LICENSE` 指向所用 Bun 版本的官方许可证，工作流负责准备该文件；包内同时保留项目 MIT 许可证、第三方声明和依赖许可证。Linux 打包使用 nFPM 与 appimagetool，Windows 使用 Inno Setup；工作流准备对应工具。手工运行 `pnpm package:linux` 时需将 nFPM 加入 PATH，并用 `DATER_APPIMAGETOOL` 指定已解包的 appimagetool `AppRun` 绝对路径。为兼容 Windows 版本资源，发布版本的前三段均不得超过 65535。
 
 ## 世界观数据
 

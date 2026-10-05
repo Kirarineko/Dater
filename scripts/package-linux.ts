@@ -1,5 +1,5 @@
 import { chmod, copyFile, cp, mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getReleaseVersion } from "./release-version.ts";
 
@@ -12,7 +12,7 @@ const packages = join(project, "release", "packages");
 const appDirectory = join(project, "release", "AppDir");
 const version = await getReleaseVersion();
 const appImageTool = process.env.DATER_APPIMAGETOOL;
-if (!appImageTool || !resolve(appImageTool).startsWith("/") || !(await stat(appImageTool)).isFile()) {
+if (!appImageTool || !isAbsolute(appImageTool) || !(await stat(appImageTool)).isFile()) {
   throw new Error("请设置 DATER_APPIMAGETOOL，指向已解包的 appimagetool AppRun。");
 }
 if (!(await stat(join(payload, "dater"))).isFile()) throw new Error("请先运行 pnpm build:release。");

@@ -46,14 +46,58 @@ const
   EnvironmentKey = 'Environment';
   InstallerKey = 'Software\Dater\Installer\AF6C9D23-8C94-4C91-BE1C-D75EF3C16C18';
   OwnedEntryName = 'OwnedPathEntry';
+  RegistryString = 1;
+  RegistryExpandString = 2;
+  // Accept only string types; query the 64-bit view without expanding values.
+  QueryStringFlags = $10010006;
 
-function ReadUserPath(var Value: String): Boolean;
+// Inno Setup 6 uses a 32-bit installer process, including 64-bit install mode.
+// lpData is NULL here; only the value type and required size are queried.
+function QueryRegistryValue(RootKey: Integer; SubKey, ValueName: String;
+  Flags: Cardinal; var ValueType: Cardinal; Data: Integer;
+  var DataSize: Cardinal): Integer;
+  external 'RegGetValueW@advapi32.dll stdcall';
+
+function ReadUserPath(var Value: String; var ValueType: Cardinal): Boolean;
+var
+  Status: Integer;
+  DataSize: Cardinal;
 begin
   Value := '';
-  if RegValueExists(HKCU, EnvironmentKey, 'Path') then
-    Result := RegQueryStringValue(HKCU, EnvironmentKey, 'Path', Value)
-  else
+  ValueType := RegistryExpandString;
+  DataSize := 0;
+  Status := QueryRegistryValue(HKCU, EnvironmentKey, 'Path', QueryStringFlags,
+    ValueType, 0, DataSize);
+  if (Status = 2) or (Status = 3) then
+  begin
+    ValueType := RegistryExpandString;
     Result := True;
+    Exit;
+  end;
+  if Status <> 0 then
+  begin
+    Log('Dater: reading PATH type failed with Windows error ' + IntToStr(Status) +
+      '; an inaccessible or unsupported registry value will not be overwritten.');
+    Result := False;
+    Exit;
+  end;
+  if (ValueType <> RegistryString) and (ValueType <> RegistryExpandString) then
+  begin
+    Log('Dater: unsupported PATH registry type ' + IntToStr(ValueType) + '.');
+    Result := False;
+    Exit;
+  end;
+  Result := RegQueryStringValue(HKCU, EnvironmentKey, 'Path', Value);
+end;
+
+function WriteUserPath(const Value: String; ValueType: Cardinal): Boolean;
+begin
+  if ValueType = RegistryString then
+    Result := RegWriteStringValue(HKCU, EnvironmentKey, 'Path', Value)
+  else if ValueType = RegistryExpandString then
+    Result := RegWriteExpandStringValue(HKCU, EnvironmentKey, 'Path', Value)
+  else
+    Result := False;
 end;
 
 function ExpandPathVariables(const Value: String): String;
@@ -198,8 +242,9 @@ procedure InstallPathEntry;
 var
   OriginalPath, UpdatedPath, PreviousOwnedEntry, InstallDirectory, NewOwnedEntry: String;
   ShouldOwnEntry, MarkerSaved: Boolean;
+  PathValueType: Cardinal;
 begin
-  if not ReadUserPath(OriginalPath) then
+  if not ReadUserPath(OriginalPath, PathValueType) then
   begin
     ReportPathFailure('read');
     Exit;
@@ -223,7 +268,7 @@ begin
     ShouldOwnEntry := True;
   end;
   if UpdatedPath <> OriginalPath then
-    if not RegWriteExpandStringValue(HKCU, EnvironmentKey, 'Path', UpdatedPath) then
+    if not WriteUserPath(UpdatedPath, PathValueType) then
     begin
       ReportPathFailure('update');
       Exit;
@@ -238,7 +283,7 @@ begin
   begin
     // Roll back PATH if ownership cannot be recorded for safe uninstallation.
     if UpdatedPath <> OriginalPath then
-      if not RegWriteExpandStringValue(HKCU, EnvironmentKey, 'Path', OriginalPath) then
+      if not WriteUserPath(OriginalPath, PathValueType) then
         Log('Dater: could not roll back PATH after an ownership-record failure.');
     ReportPathFailure('record ownership of');
   end;
@@ -248,6 +293,7 @@ end;
 procedure UninstallPathEntry;
 var
   OriginalPath, UpdatedPath, OwnedEntry: String;
+  PathValueType: Cardinal;
 begin
   OwnedEntry := '';
   if not RegQueryStringValue(HKCU, InstallerKey, OwnedEntryName, OwnedEntry) then
@@ -255,14 +301,14 @@ begin
   // Ignore a marker for a different installation directory.
   if OwnedDirectory(OwnedEntry) <> ExpandConstant('{app}') then
     Exit;
-  if not ReadUserPath(OriginalPath) then
+  if not ReadUserPath(OriginalPath, PathValueType) then
   begin
     ReportPathFailure('read');
     Exit;
   end;
   UpdatedPath := RemoveOwnedPathEntry(OriginalPath, OwnedEntry);
   if UpdatedPath <> OriginalPath then
-    if not RegWriteExpandStringValue(HKCU, EnvironmentKey, 'Path', UpdatedPath) then
+    if not WriteUserPath(UpdatedPath, PathValueType) then
     begin
       ReportPathFailure('remove Dater from');
       Exit;
